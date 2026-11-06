@@ -17,7 +17,7 @@ DevPilot provides a deterministic work ledger and audit trail reconciling human 
                                  │                 │
   ┌────────────────────────┐     │                 ▼
   │   Test Run Outcomes    ├─────┘     ┌────────────────────────┐
-  │  (JUnit XML / JSON)    │           │ DevPilot Work Ledger   │
+  │  (JUnit / TAP / JSON)  │           │ DevPilot Work Ledger   │
   └────────────────────────┘           │ (.devpilot/ledger.json)│
                                        └───────────┬────────────┘
                                                    │
@@ -39,7 +39,7 @@ DevPilot provides a deterministic work ledger and audit trail reconciling human 
 2. **Estimate / Heuristic (`estimate`)**:
    Associations inferred by regex matching, keyword heuristics, or unverified branch names.
 3. **Human Approval (`human_approval`)**:
-   Explicit sign-offs created by human developers via `devpilot approve` with reviewer identity, timestamp, and audit rationale.
+   Explicit sign-offs created by human developers via `devpilot approve` with reviewer identity, timestamp, audit rationale, and SHA-256 tamper-evident checksums.
 
 ### Rigorous Task Statuses
 - `VERIFIED_COMPLETED`: Task is closed and backed by passing automated tests and observed commits.
@@ -64,3 +64,9 @@ The core engine (`src/core/`) is designed to stay strictly under **1,500 lines o
 1. Open `src/core/issues-parser.ts`.
 2. Implement your parser returning `IssueRecord[]`.
 3. Add fixtures and assertions in `test/issues-parser.test.ts`.
+
+## 4. Product Roadmap (v1.1+)
+
+- **SARIF Security Reporting**: Export critical path alerts into the OASIS SARIF format for GitHub Code Scanning integration.
+- **Coverage Ledger Evidence**: Ingest LCOV reports to mathematically enforce minimum line-coverage requirements before agent commits can be approved.
+- **Git Worktrees Reconciliation**: Enable simultaneous audit comparisons across active worktree branches.

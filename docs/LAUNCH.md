@@ -1,16 +1,16 @@
 # DevPilot Launch Checklist & Promotion Plan
 
-Checklist prima di rendere pubblica la repo (`gh repo edit MRJonam91/DevPilot --visibility public`).
+Checklist di pubblicazione del repository (`gh repo edit MRJonam91/DevPilot --visibility public`).
 
-## 1. Pre-launch Checklist
+## 1. Release 1.0.0 Checklist
 - [x] Test suite 100% verde (`npm test`)
 - [x] Typecheck senza errori (`npm run typecheck`)
 - [x] Core size guard (< 1.500 righe di codice)
 - [x] Licenza Apache-2.0 ufficiale (`LICENSE`, `NOTICE`, `LICENSING.md`)
 - [x] Donazioni configurate (`.github/FUNDING.yml`, README badge)
-- [x] Marker anti-plagio registrati in `_provenance/DevPilot.json`
 - [x] Demo visuale in `docs/assets/demo.svg`
-- [ ] Abilitare Sponsorships in GitHub repo settings
+- [x] Controllo integrità crittografica e tamper-evidence attivo
+- [x] Documentazione bilingue completa (EN/IT)
 
 ## 2. Launch Drafts
 
