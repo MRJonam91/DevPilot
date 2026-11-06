@@ -7,7 +7,7 @@ import type { IssueRecord } from "./types.ts";
 export function parseIssuesJson(jsonContent: string): IssueRecord[] {
   if (!jsonContent.trim()) return [];
   const parsed = JSON.parse(jsonContent);
-  const rawList = Array.isArray(parsed) ? parsed : (parsed.issues || []);
+  const rawList = Array.isArray(parsed) ? parsed : (parsed.issues || parsed.data || []);
 
   const issues: IssueRecord[] = [];
   for (const item of rawList) {

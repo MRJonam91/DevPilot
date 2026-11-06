@@ -27,7 +27,7 @@ export function parseJunitXml(xmlContent: string): TestSuiteSummary {
 
     if (/<failure\b|<error\b/i.test(bodyStr)) {
       status = "failed";
-      const msgMatch = bodyStr.match(/message="([^"]*)"/) || bodyStr.match(/<failure[^>]*>([\s\S]*?)<\/failure>/i);
+      const msgMatch = bodyStr.match(/message="([^"]*)"/) || bodyStr.match(/<(?:failure|error)[^>]*>([\s\S]*?)<\/(?:failure|error)>/i);
       failureMessage = msgMatch?.[1]?.trim() || "Test failed";
     } else if (/<skipped\b/i.test(bodyStr)) {
       status = "skipped";

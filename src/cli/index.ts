@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Manoj Rollo (MRJonam91)
 
-import { writeFileSync, existsSync } from "node:fs";
-import { resolve, basename } from "node:path";
+import { writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { resolve, basename, dirname } from "node:path";
 import { DEVPILOT_VERSION, SPONSOR_PROMPT } from "../core/constants.ts";
 import { readLocalGitCommits } from "../core/git-parser.ts";
 import { loadIssuesFromFile } from "../core/issues-parser.ts";
@@ -227,6 +227,9 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
     if (command === "export") {
       const outDir = flags.output || flags.o || ".";
       const resolvedOutDir = resolve(String(outDir));
+      if (!existsSync(resolvedOutDir)) {
+        mkdirSync(resolvedOutDir, { recursive: true });
+      }
       const html = renderHtmlReport(report);
       const md = renderMarkdownReport(report);
       const json = JSON.stringify(report, null, 2);
@@ -285,8 +288,13 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
 
       const outFile = flags.output || flags.o;
       if (outFile) {
-        writeFileSync(resolve(String(outFile)), outputText, "utf8");
-        console.log(`✔ DevPilot report generated successfully: ${resolve(String(outFile))}`);
+        const targetFilePath = resolve(String(outFile));
+        const targetDir = dirname(targetFilePath);
+        if (!existsSync(targetDir)) {
+          mkdirSync(targetDir, { recursive: true });
+        }
+        writeFileSync(targetFilePath, outputText, "utf8");
+        console.log(`✔ DevPilot report generated successfully: ${targetFilePath}`);
       } else {
         console.log(outputText);
       }
@@ -312,7 +320,14 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
   }
 }
 
-if (process.argv[1] && (process.argv[1].endsWith("cli/index.ts") || process.argv[1].endsWith("cli/index.js"))) {
+const isCliEntry = Boolean(
+  process.argv[1] &&
+    (/(?:cli[\\/]index\.[tj]s|devpilot(\.[a-z]+)?)$/i.test(process.argv[1]) ||
+      process.argv[1].replace(/\\/g, "/").endsWith("cli/index.ts") ||
+      process.argv[1].replace(/\\/g, "/").endsWith("cli/index.js"))
+);
+
+if (isCliEntry) {
   runCli().then((code) => {
     if (code !== 0) process.exit(code);
   });

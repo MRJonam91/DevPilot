@@ -122,7 +122,7 @@ export function reconcileWorkLedger(options: ReconcileOptions): AuditReport {
       evidence: { commits: itemCommits, issues: [issue], tests: itemTests, signOff },
       evidenceNotes: notes,
       unsubstantiatedFlags: flags,
-      isCriticalRisk: hasCriticalPath && !signOff,
+      isCriticalRisk: primaryActor === "agent" && hasCriticalPath && !signOff,
     });
   }
 
@@ -184,7 +184,7 @@ export function reconcileWorkLedger(options: ReconcileOptions): AuditReport {
       evidence: { commits: group, issues: [], tests: itemTests, signOff },
       evidenceNotes: notes,
       unsubstantiatedFlags: flags,
-      isCriticalRisk: hasCriticalPath && !signOff,
+      isCriticalRisk: primaryActor === "agent" && hasCriticalPath && !signOff,
     });
     autoId++;
   }

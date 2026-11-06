@@ -5,7 +5,8 @@ import { execFileSync } from "node:child_process";
 import { KNOWN_AGENT_IDENTIFIERS } from "./constants.ts";
 import type { ActorKind, GitCommitRecord } from "./types.ts";
 
-const COMMIT_DELIMITER = "---DEVPILOT-COMMIT-END---";
+const COMMIT_START_DELIMITER = "---DEVPILOT-COMMIT-START---";
+const COMMIT_END_DELIMITER = "---DEVPILOT-COMMIT-END---";
 
 const CRITICAL_FILE_PATTERNS = [
   /^\.github\//i,
@@ -61,7 +62,11 @@ export function extractCoAuthors(body: string): string[] {
 export function parseGitLogOutput(rawLog: string): GitCommitRecord[] {
   if (!rawLog || !rawLog.trim()) return [];
 
-  const rawBlocks = rawLog.split(COMMIT_DELIMITER);
+  // Support both START delimiter and legacy END delimiter
+  const rawBlocks = rawLog.includes(COMMIT_START_DELIMITER)
+    ? rawLog.split(COMMIT_START_DELIMITER)
+    : rawLog.split(COMMIT_END_DELIMITER);
+
   const commits: GitCommitRecord[] = [];
 
   for (const block of rawBlocks) {
@@ -73,7 +78,7 @@ export function parseGitLogOutput(rawLog: string): GitCommitRecord[] {
 
     const lines = headerPart.split("\n");
     const [sha = "", authorName = "", authorEmail = "", date = "", subject = "", ...bodyLines] = lines;
-    if (!sha) continue;
+    if (!sha || sha.length < 7) continue;
 
     const body = bodyLines.join("\n").trim();
     const actorKind = detectActorKind(authorName, authorEmail, body);
@@ -86,7 +91,6 @@ export function parseGitLogOutput(rawLog: string): GitCommitRecord[] {
 
     const statLines = statParts.join("\n").split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
     for (const line of statLines) {
-      // Either raw file name or numstat format: "12\t4\tsrc/file.ts"
       const match = line.match(/^(\d+|-)\s+(\d+|-)\s+(.+)$/);
       if (match && match[3]) {
         insertions += match[1] !== "-" ? Number.parseInt(match[1]!, 10) : 0;
@@ -129,7 +133,7 @@ export interface ReadGitCommitsOptions {
 export function readLocalGitCommits(repoPath: string, options: ReadGitCommitsOptions = {}): GitCommitRecord[] {
   try {
     const max = options.maxCount ?? 100;
-    const gitFormat = `%H%n%an%n%ae%n%aI%n%s%n%b%n--FILES--`;
+    const gitFormat = `${COMMIT_START_DELIMITER}%n%H%n%an%n%ae%n%aI%n%s%n%b%n--FILES--`;
     const args = ["log", `-${max}`, `--format=${gitFormat}`, "--numstat"];
     if (options.since) {
       args.push(`--since=${options.since}`);
@@ -144,26 +148,7 @@ export function readLocalGitCommits(repoPath: string, options: ReadGitCommitsOpt
       stdio: ["ignore", "pipe", "ignore"],
     });
 
-    const blocks: string[] = [];
-    const lines = stdout.split("\n");
-    let currentBlock: string[] = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]!;
-      if (/^[0-9a-f]{40}$/i.test(line) && (i === 0 || lines[i - 1]?.trim() === "" || lines[i - 1]?.includes("---"))) {
-        if (currentBlock.length > 0) {
-          blocks.push(currentBlock.join("\n"));
-          currentBlock = [];
-        }
-      }
-      currentBlock.push(line);
-    }
-    if (currentBlock.length > 0) {
-      blocks.push(currentBlock.join("\n"));
-    }
-
-    const syntheticLog = blocks.join(`\n${COMMIT_DELIMITER}\n`);
-    return parseGitLogOutput(syntheticLog);
+    return parseGitLogOutput(stdout);
   } catch {
     return [];
   }
