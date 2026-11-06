@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.1] - 2026-11-06
+
+### Added
+- **Alpha Core Capabilities**:
+  - Critical Path Risk detection: identifies unapproved modifications to sensitive repository assets (`.github/workflows`, `package.json`, authentication configurations).
+  - AI Code Bloat detector: flags runaway agent commits exceeding 200 LOC without associated automated tests.
+  - Test Anything Protocol (TAP) stream parser: full interoperability with TAP v13 test suites.
+  - LOC Diff metrics: tracking additions, deletions, and volume metrics directly within work ledger items.
+- **Enhanced CLI & Automation**:
+  - `devpilot status`: compact single-line digest with colored risk levels and metrics for shell prompts and CI jobs.
+  - `--strict` flag: enforce automated CI exit code failures if unverified agent tasks, test failures, or critical path risks exist.
+  - `--since` and `--max` git commit filtering options.
+- **Interactive Local HTML Dashboard**:
+  - Real-time client-side search across tasks, commits, actors, and statuses.
+  - Instant status filtering buttons (All, Verified, Needs Review, Failed/Blocked).
+  - Total code volume diff stat cards (+/- LOC).
+
 ## [1.0.0] - 2026-11-06
 
 ### Added

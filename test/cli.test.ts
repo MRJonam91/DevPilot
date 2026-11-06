@@ -16,6 +16,9 @@ test("parseArgs parses flags and positional arguments accurately", () => {
     "--format",
     "html",
     "--no-sponsor",
+    "--strict",
+    "--since",
+    "2026-01-01",
     "-o",
     "out.html",
   ]);
@@ -24,10 +27,12 @@ test("parseArgs parses flags and positional arguments accurately", () => {
   assert.equal(flags.repo, "./my-repo");
   assert.equal(flags.format, "html");
   assert.equal(flags.noSponsor, true);
+  assert.equal(flags.strict, true);
+  assert.equal(flags.since, "2026-01-01");
   assert.equal(flags.o, "out.html");
 });
 
-test("runCli commands: help, version, init, verify", async () => {
+test("runCli commands: help, version, init, verify, status", async () => {
   const tempDir = mkdtempSync(join(tmpdir(), "devpilot-cli-test-"));
 
   try {
@@ -54,6 +59,9 @@ test("runCli commands: help, version, init, verify", async () => {
 
     const codeVerify = await runCli(["verify", "--repo", tempDir]);
     assert.equal(codeVerify, 0);
+
+    const codeStatus = await runCli(["status", "--repo", tempDir]);
+    assert.equal(codeStatus, 0);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

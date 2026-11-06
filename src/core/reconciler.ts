@@ -49,7 +49,6 @@ export function reconcileWorkLedger(options: ReconcileOptions): AuditReport {
 
   const items: WorkLedgerItem[] = [];
 
-  // Group by issues first (if present)
   for (const issue of issues) {
     const itemCommits = commits.filter((c) => {
       const match = c.issueRefs.includes(issue.id) || c.subject.toLowerCase().includes(`issue-${issue.id}`);
@@ -62,17 +61,9 @@ export function reconcileWorkLedger(options: ReconcileOptions): AuditReport {
 
     const signOff = signOffs[`issue-${issue.id}`] || signOffs[String(issue.id)];
 
-    const evidence: WorkItemEvidence = {
-      commits: itemCommits,
-      issues: [issue],
-      tests: itemTests,
-      signOff,
-    };
-
     const notes: string[] = [];
     const flags: string[] = [];
 
-    // Determine primary actor
     const agentCommits = itemCommits.filter((c) => c.actorKind === "agent").length;
     const humanCommits = itemCommits.filter((c) => c.actorKind === "human").length;
     let primaryActor: ActorKind = "unknown";
@@ -80,7 +71,9 @@ export function reconcileWorkLedger(options: ReconcileOptions): AuditReport {
     else if (humanCommits > 0) primaryActor = "human";
     else if (agentCommits > 0) primaryActor = "agent";
 
-    // Compute status strictly based on evidence
+    const hasCriticalPath = itemCommits.some((c) => c.isCriticalPath);
+    const totalLines = itemCommits.reduce((acc, c) => acc + c.insertions + c.deletions, 0);
+
     let status: TaskStatus = "UNVERIFIED";
     const hasFailedTests = itemTests.some((t) => t.status === "failed");
     const hasPassedTests = itemTests.some((t) => t.status === "passed");
@@ -95,7 +88,13 @@ export function reconcileWorkLedger(options: ReconcileOptions): AuditReport {
       }
     } else if (hasFailedTests) {
       status = "TESTS_FAILED";
-      flags.push(`Observed test failures in associated test cases`);
+      flags.push("Observed test failures in associated test cases");
+    } else if (primaryActor === "agent" && hasCriticalPath) {
+      status = "NEEDS_HUMAN_REVIEW";
+      flags.push("Critical path modified by agent without human approval");
+    } else if (primaryActor === "agent" && totalLines > 200 && itemTests.length === 0) {
+      status = "NEEDS_HUMAN_REVIEW";
+      flags.push(`Untested agent code: ${totalLines} LOC modified with 0 test assertions`);
     } else if (primaryActor === "agent" && itemCommits.length > 0 && !signOff) {
       status = "NEEDS_HUMAN_REVIEW";
       flags.push("Agent-generated commits require explicit human review");
@@ -119,16 +118,15 @@ export function reconcileWorkLedger(options: ReconcileOptions): AuditReport {
       category,
       status,
       primaryActor,
-      evidence,
+      evidence: { commits: itemCommits, issues: [issue], tests: itemTests, signOff },
       evidenceNotes: notes,
       unsubstantiatedFlags: flags,
+      isCriticalRisk: hasCriticalPath && !signOff,
     });
   }
 
-  // Find commits not tied to known issues
   const orphanCommits = commits.filter((c) => !matchedCommitShas.has(c.sha));
 
-  // Synthesize work items for orphan commit groups (e.g. standalone features or refactors)
   const commitsBySubjectGroup = new Map<string, GitCommitRecord[]>();
   for (const c of orphanCommits) {
     const key = c.subject.replace(/^(feat|fix|docs|refactor|test|chore)(\([^)]+\))?:\s*/i, "").trim().toLowerCase();
@@ -144,19 +142,15 @@ export function reconcileWorkLedger(options: ReconcileOptions): AuditReport {
     for (const t of itemTests) matchedTestNames.add(`${t.suite}::${t.name}`);
 
     const signOff = signOffs[`task-${autoId}`];
-    const evidence: WorkItemEvidence = {
-      commits: group,
-      issues: [],
-      tests: itemTests,
-      signOff,
-    };
-
     const notes: string[] = [`Observed from git history: ${group.length} commit(s)`];
     const flags: string[] = [];
 
     const agentCommits = group.filter((c) => c.actorKind === "agent").length;
     const humanCommits = group.filter((c) => c.actorKind === "human").length;
     const primaryActor: ActorKind = agentCommits > 0 && humanCommits === 0 ? "agent" : (humanCommits > 0 ? "human" : "unknown");
+
+    const hasCriticalPath = group.some((c) => c.isCriticalPath);
+    const totalLines = group.reduce((acc, c) => acc + c.insertions + c.deletions, 0);
 
     let status: TaskStatus = "IN_PROGRESS";
     const hasFailedTests = itemTests.some((t) => t.status === "failed");
@@ -167,6 +161,12 @@ export function reconcileWorkLedger(options: ReconcileOptions): AuditReport {
     } else if (hasFailedTests) {
       status = "TESTS_FAILED";
       flags.push("Test cases associated with this task failed");
+    } else if (primaryActor === "agent" && hasCriticalPath) {
+      status = "NEEDS_HUMAN_REVIEW";
+      flags.push("Critical path file touched by agent requires human review");
+    } else if (primaryActor === "agent" && totalLines > 200 && itemTests.length === 0) {
+      status = "NEEDS_HUMAN_REVIEW";
+      flags.push(`Untested agent code: ${totalLines} LOC modified with 0 test assertions`);
     } else if (primaryActor === "agent" && !signOff) {
       status = "NEEDS_HUMAN_REVIEW";
       flags.push("Agent work requires human verification before sign-off");
@@ -180,14 +180,20 @@ export function reconcileWorkLedger(options: ReconcileOptions): AuditReport {
       category: signOff ? "human_approval" : "observed_fact",
       status,
       primaryActor,
-      evidence,
+      evidence: { commits: group, issues: [], tests: itemTests, signOff },
       evidenceNotes: notes,
       unsubstantiatedFlags: flags,
+      isCriticalRisk: hasCriticalPath && !signOff,
     });
     autoId++;
   }
 
   const orphanTests = tests.filter((t) => !matchedTestNames.has(`${t.suite}::${t.name}`));
+
+  const totalInsertions = commits.reduce((acc, c) => acc + c.insertions, 0);
+  const totalDeletions = commits.reduce((acc, c) => acc + c.deletions, 0);
+  const criticalPathWarnings = items.filter((i) => i.isCriticalRisk).length;
+  const untestedAgentCodeCount = items.filter((i) => i.unsubstantiatedFlags.some((f) => f.includes("Untested agent code"))).length;
 
   const summary: AuditSummary = {
     totalItems: items.length,
@@ -202,6 +208,10 @@ export function reconcileWorkLedger(options: ReconcileOptions): AuditReport {
     agentCommitsCount: commits.filter((c) => c.actorKind === "agent").length,
     observedFactsCount: items.filter((i) => i.category === "observed_fact").length,
     estimatesCount: items.filter((i) => i.category === "estimate").length,
+    totalInsertions,
+    totalDeletions,
+    criticalPathWarnings,
+    untestedAgentCodeCount,
   };
 
   return {

@@ -45,15 +45,60 @@ export function parseJunitXml(xmlContent: string): TestSuiteSummary {
   const passed = tests.filter((t) => t.status === "passed").length;
   const failed = tests.filter((t) => t.status === "failed").length;
   const skipped = tests.filter((t) => t.status === "skipped").length;
-  const total = tests.length;
-  const durationMs = tests.reduce((acc, t) => acc + t.durationMs, 0);
 
   return {
-    total,
+    total: tests.length,
     passed,
     failed,
     skipped,
-    durationMs,
+    durationMs: tests.reduce((acc, t) => acc + t.durationMs, 0),
+    timestamp: new Date().toISOString(),
+    tests,
+  };
+}
+
+export function parseTapOutput(tapContent: string): TestSuiteSummary {
+  const tests: TestCaseRecord[] = [];
+  const lines = tapContent.split("\n");
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Matches: ok 1 - test description or not ok 2 - test description # SKIP reason
+    const match = trimmed.match(/^(ok|not ok)\s*(?:\d+)?\s*(?:-\s*)?([^#\n]+)?(?:\s*#\s*(.+))?$/i);
+    if (match && match[1]) {
+      const isOk = match[1].toLowerCase() === "ok";
+      const desc = match[2]?.trim() || "unnamed test";
+      const directive = match[3]?.trim() || "";
+
+      let status: "passed" | "failed" | "skipped" = isOk ? "passed" : "failed";
+      let failureMessage: string | undefined;
+
+      if (/^skip\b/i.test(directive) || /^todo\b/i.test(directive)) {
+        status = "skipped";
+      } else if (!isOk) {
+        failureMessage = directive || "Test assertion failed";
+      }
+
+      tests.push({
+        name: desc,
+        suite: "tap",
+        status,
+        durationMs: 0,
+        failureMessage,
+      });
+    }
+  }
+
+  const passed = tests.filter((t) => t.status === "passed").length;
+  const failed = tests.filter((t) => t.status === "failed").length;
+  const skipped = tests.filter((t) => t.status === "skipped").length;
+
+  return {
+    total: tests.length,
+    passed,
+    failed,
+    skipped,
+    durationMs: 0,
     timestamp: new Date().toISOString(),
     tests,
   };
@@ -62,12 +107,10 @@ export function parseJunitXml(xmlContent: string): TestSuiteSummary {
 export function parseNodeJsonTestOutput(jsonContent: string): TestSuiteSummary {
   const tests: TestCaseRecord[] = [];
 
-  // Support lines of JSON (ndjson) or a single object
   const lines = jsonContent.split("\n").filter((l) => l.trim().length > 0);
   for (const line of lines) {
     try {
       const entry = JSON.parse(line);
-      // Node.js test runner event format or Jest format
       if (entry.type === "test:pass" || entry.type === "test:fail") {
         const isPass = entry.type === "test:pass";
         const details = entry.data || entry;
@@ -79,7 +122,6 @@ export function parseNodeJsonTestOutput(jsonContent: string): TestSuiteSummary {
           failureMessage: isPass ? undefined : (details.error?.message || "Test failed"),
         });
       } else if (entry.testResults && Array.isArray(entry.testResults)) {
-        // Jest/Vitest JSON output format
         for (const suite of entry.testResults) {
           for (const assertion of suite.assertionResults || []) {
             const status = assertion.status === "passed" ? "passed" : (assertion.status === "skipped" ? "skipped" : "failed");
@@ -129,6 +171,9 @@ export function loadTestResultsFromFile(filePath: string): TestSuiteSummary {
   const content = readFileSync(filePath, "utf8");
   if (filePath.endsWith(".xml")) {
     return parseJunitXml(content);
+  }
+  if (filePath.endsWith(".tap") || content.startsWith("TAP version") || /^1\.\.\d+/m.test(content)) {
+    return parseTapOutput(content);
   }
   return parseNodeJsonTestOutput(content);
 }

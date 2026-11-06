@@ -26,6 +26,9 @@ export interface GitCommitRecord {
   filesTouched: string[];
   issueRefs: number[];
   coAuthors: string[];
+  insertions: number;
+  deletions: number;
+  isCriticalPath: boolean;
 }
 
 export interface IssueRecord {
@@ -83,6 +86,7 @@ export interface WorkLedgerItem {
   evidence: WorkItemEvidence;
   evidenceNotes: string[];
   unsubstantiatedFlags: string[];
+  isCriticalRisk?: boolean;
 }
 
 export interface WorkLedger {
@@ -105,6 +109,10 @@ export interface AuditSummary {
   agentCommitsCount: number;
   observedFactsCount: number;
   estimatesCount: number;
+  totalInsertions: number;
+  totalDeletions: number;
+  criticalPathWarnings: number;
+  untestedAgentCodeCount: number;
 }
 
 export interface AuditReport {

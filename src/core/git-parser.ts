@@ -7,6 +7,22 @@ import type { ActorKind, GitCommitRecord } from "./types.ts";
 
 const COMMIT_DELIMITER = "---DEVPILOT-COMMIT-END---";
 
+const CRITICAL_FILE_PATTERNS = [
+  /^\.github\//i,
+  /^package(-lock)?\.json$/i,
+  /^tsconfig.*\.json$/i,
+  /^\.env/i,
+  /security/i,
+  /auth/i,
+  /dockerfile/i,
+  /docker-compose/i,
+];
+
+export function isCriticalPathFile(filePath: string): boolean {
+  const norm = filePath.replace(/\\/g, "/");
+  return CRITICAL_FILE_PATTERNS.some((p) => p.test(norm));
+}
+
 export function detectActorKind(authorName: string, authorEmail: string, commitBody: string): ActorKind {
   const norm = `${authorName} ${authorEmail} ${commitBody}`.toLowerCase();
   for (const id of KNOWN_AGENT_IDENTIFIERS) {
@@ -52,7 +68,7 @@ export function parseGitLogOutput(rawLog: string): GitCommitRecord[] {
     const trimmed = block.trim();
     if (!trimmed) continue;
 
-    const [headerPart, ...fileParts] = trimmed.split("\n--FILES--\n");
+    const [headerPart, ...statParts] = trimmed.split("\n--FILES--\n");
     if (!headerPart) continue;
 
     const lines = headerPart.split("\n");
@@ -64,10 +80,24 @@ export function parseGitLogOutput(rawLog: string): GitCommitRecord[] {
     const issueRefs = extractIssueRefs(`${subject}\n${body}`);
     const coAuthors = extractCoAuthors(body);
 
-    const filesTouched = fileParts.join("\n")
-      .split("\n")
-      .map((f) => f.trim())
-      .filter((f) => f.length > 0);
+    const filesTouched: string[] = [];
+    let insertions = 0;
+    let deletions = 0;
+
+    const statLines = statParts.join("\n").split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+    for (const line of statLines) {
+      // Either raw file name or numstat format: "12\t4\tsrc/file.ts"
+      const match = line.match(/^(\d+|-)\s+(\d+|-)\s+(.+)$/);
+      if (match && match[3]) {
+        insertions += match[1] !== "-" ? Number.parseInt(match[1]!, 10) : 0;
+        deletions += match[2] !== "-" ? Number.parseInt(match[2]!, 10) : 0;
+        filesTouched.push(match[3].trim());
+      } else {
+        filesTouched.push(line);
+      }
+    }
+
+    const isCriticalPath = filesTouched.some((f) => isCriticalPathFile(f));
 
     commits.push({
       sha,
@@ -81,33 +111,45 @@ export function parseGitLogOutput(rawLog: string): GitCommitRecord[] {
       filesTouched,
       issueRefs,
       coAuthors,
+      insertions,
+      deletions,
+      isCriticalPath,
     });
   }
 
   return commits;
 }
 
-export function readLocalGitCommits(repoPath: string, maxCount = 100): GitCommitRecord[] {
-  try {
-    const gitFormat = `%H%n%an%n%ae%n%aI%n%s%n%b%n--FILES--`;
-    const stdout = execFileSync(
-      "git",
-      ["log", `-${maxCount}`, `--format=${gitFormat}`, "--name-only"],
-      {
-        cwd: repoPath,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
-      }
-    );
+export interface ReadGitCommitsOptions {
+  maxCount?: number;
+  since?: string;
+  branch?: string;
+}
 
-    // Git outputs each commit followed by file list. We reconstruct blocks.
+export function readLocalGitCommits(repoPath: string, options: ReadGitCommitsOptions = {}): GitCommitRecord[] {
+  try {
+    const max = options.maxCount ?? 100;
+    const gitFormat = `%H%n%an%n%ae%n%aI%n%s%n%b%n--FILES--`;
+    const args = ["log", `-${max}`, `--format=${gitFormat}`, "--numstat"];
+    if (options.since) {
+      args.push(`--since=${options.since}`);
+    }
+    if (options.branch) {
+      args.push(options.branch);
+    }
+
+    const stdout = execFileSync("git", args, {
+      cwd: repoPath,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+
     const blocks: string[] = [];
     const lines = stdout.split("\n");
     let currentBlock: string[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]!;
-      // Commit hash line regex (40 hex chars)
       if (/^[0-9a-f]{40}$/i.test(line) && (i === 0 || lines[i - 1]?.trim() === "" || lines[i - 1]?.includes("---"))) {
         if (currentBlock.length > 0) {
           blocks.push(currentBlock.join("\n"));

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Manoj Rollo (MRJonam91)
 
-import type { AuditReport, WorkLedgerItem } from "./types.ts";
+import type { AuditReport } from "./types.ts";
 
 function statusBadge(status: string): string {
   switch (status) {
@@ -52,7 +52,13 @@ export function renderTerminalReport(report: AuditReport): string {
   out.push(`  • Needs Human Review:     \x1b[33m${summary.needsHumanReview}\x1b[0m`);
   out.push(`  • Tests Failed:           \x1b[31m${summary.testsFailed}\x1b[0m`);
   out.push(`  • Blocked / Rejected:     \x1b[31m${summary.blocked}\x1b[0m`);
-  out.push(`  • Unverified Claims:      \x1b[90m${summary.unverified}\x1b[0m`);
+  out.push(`  • Code Volume:            \x1b[32m+${summary.totalInsertions}\x1b[0m / \x1b[31m-${summary.totalDeletions}\x1b[0m lines`);
+  if (summary.criticalPathWarnings > 0) {
+    out.push(`  • \x1b[31mCritical Path Risks:    ${summary.criticalPathWarnings} item(s) touch sensitive files without review\x1b[0m`);
+  }
+  if (summary.untestedAgentCodeCount > 0) {
+    out.push(`  • \x1b[33mUntested Agent Code:    ${summary.untestedAgentCodeCount} task(s) exceed 200 LOC without tests\x1b[0m`);
+  }
   out.push("");
   out.push(`  \x1b[1mActor Breakdown:\x1b[0m Human Commits: \x1b[34m${summary.humanCommitsCount}\x1b[0m | Agent Commits: \x1b[35m${summary.agentCommitsCount}\x1b[0m`);
   out.push("");
@@ -60,12 +66,12 @@ export function renderTerminalReport(report: AuditReport): string {
 
   for (const item of report.items) {
     out.push(`  ${categoryBadge(item.category)} \x1b[1m${item.id}\x1b[0m: ${item.title}`);
-    out.push(`    Status: ${statusBadge(item.status)} | Actor: ${item.primaryActor}`);
+    out.push(`    Status: ${statusBadge(item.status)} | Actor: ${item.primaryActor}${item.isCriticalRisk ? " \x1b[41m\x1b[37m[CRITICAL RISK]\x1b[0m" : ""}`);
 
     if (item.evidence.commits.length > 0) {
       const commitList = item.evidence.commits
         .slice(0, 3)
-        .map((c) => `[${c.shortSha}] ${c.subject} (${c.actorKind})`)
+        .map((c) => `[${c.shortSha}] ${c.subject} (${c.actorKind}) +${c.insertions}/-${c.deletions}`)
         .join("\n      ");
       out.push(`    Git Commits (${item.evidence.commits.length}):\n      ${commitList}`);
     }
@@ -101,7 +107,7 @@ export function renderMarkdownReport(report: AuditReport): string {
   out.push("");
   out.push("## Summary");
   out.push("");
-  out.push("| Metric | Count |");
+  out.push("| Metric | Value |");
   out.push("|---|---|");
   out.push(`| **Total Work Items** | ${summary.totalItems} |`);
   out.push(`| **Human Approved** | ${summary.humanApproved} |`);
@@ -109,9 +115,10 @@ export function renderMarkdownReport(report: AuditReport): string {
   out.push(`| **In Progress** | ${summary.inProgress} |`);
   out.push(`| **Needs Human Review** | ${summary.needsHumanReview} |`);
   out.push(`| **Tests Failed** | ${summary.testsFailed} |`);
-  out.push(`| **Blocked / Rejected** | ${summary.blocked} |`);
+  out.push(`| **Critical Path Risks** | ${summary.criticalPathWarnings} |`);
   out.push(`| **Human Commits** | ${summary.humanCommitsCount} |`);
   out.push(`| **Agent Commits** | ${summary.agentCommitsCount} |`);
+  out.push(`| **Code Volume** | +${summary.totalInsertions} / -${summary.totalDeletions} lines |`);
   out.push("");
   out.push("## Ledger Items & Evidence");
   out.push("");
@@ -123,6 +130,7 @@ export function renderMarkdownReport(report: AuditReport): string {
       item.evidence.commits.length > 0 ? `${item.evidence.commits.length} commits` : "",
       item.evidence.tests.length > 0 ? `${item.evidence.tests.length} tests` : "",
       item.evidence.signOff ? `signed by ${item.evidence.signOff.approvedBy}` : "",
+      item.isCriticalRisk ? "**[CRITICAL RISK]**" : "",
     ].filter(Boolean).join(", ") || "None";
 
     out.push(`| \`${item.id}\` | ${item.title.replace(/\|/g, "\\|")} | \`${item.status}\` | ${item.category} | ${item.primaryActor} | ${evidenceNotes} |`);
@@ -137,7 +145,7 @@ export function renderHtmlReport(report: AuditReport): string {
   const rows = report.items.map((item) => {
     const statusClass = item.status.toLowerCase().replace(/_/g, "-");
     const commitItems = item.evidence.commits
-      .map((c) => `<li><code>${c.shortSha}</code> ${escapeHtml(c.subject)} <small>(${c.actorKind})</small></li>`)
+      .map((c) => `<li><code>${c.shortSha}</code> ${escapeHtml(c.subject)} <small>(${c.actorKind}) +${c.insertions}/-${c.deletions}</small>${c.isCriticalPath ? " <span class='badge risk'>CRITICAL FILE</span>" : ""}</li>`)
       .join("");
 
     const testItems = item.evidence.tests
@@ -149,12 +157,13 @@ export function renderHtmlReport(report: AuditReport): string {
       .join("");
 
     return `
-      <tr class="item-row status-${statusClass}" data-status="${item.status}" data-actor="${item.primaryActor}">
+      <tr class="item-row status-${statusClass}" data-status="${item.status}" data-actor="${item.primaryActor}" data-search="${escapeHtml(item.id + " " + item.title + " " + item.primaryActor + " " + item.status).toLowerCase()}">
         <td><strong><code>${escapeHtml(item.id)}</code></strong></td>
         <td>
           <div class="item-title">${escapeHtml(item.title)}</div>
           <span class="badge category-${item.category}">${escapeHtml(item.category)}</span>
           <span class="badge actor-${item.primaryActor}">${escapeHtml(item.primaryActor)}</span>
+          ${item.isCriticalRisk ? "<span class='badge risk'>CRITICAL RISK</span>" : ""}
           ${flags}
         </td>
         <td><span class="status-pill ${statusClass}">${escapeHtml(item.status)}</span></td>
@@ -222,6 +231,36 @@ export function renderHtmlReport(report: AuditReport): string {
     .val-yellow { color: var(--yellow); }
     .val-red { color: var(--red); }
     .val-blue { color: var(--blue); }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+      align-items: center;
+    }
+    .search-input {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      min-width: 280px;
+    }
+    .filter-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .filter-btn.active {
+      border-color: var(--blue);
+      color: #fff;
+      background: #1f2937;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -262,6 +301,7 @@ export function renderHtmlReport(report: AuditReport): string {
       margin-right: 4px;
       margin-top: 4px;
     }
+    .badge.risk { background: rgba(248, 81, 73, 0.3); color: var(--red); border: 1px solid var(--red); font-weight: bold; }
     .category-observed_fact { background: #388bfd26; color: #58a6ff; }
     .category-estimate { background: #bb800926; color: #d29922; }
     .category-human_approval { background: #23863626; color: #3fb950; }
@@ -303,12 +343,20 @@ export function renderHtmlReport(report: AuditReport): string {
       <div class="stat-label">Failed / Blocked</div>
     </div>
     <div class="stat-card">
-      <div class="stat-val">${report.summary.humanCommitsCount} / ${report.summary.agentCommitsCount}</div>
-      <div class="stat-label">Human vs Agent Commits</div>
+      <div class="stat-val">+${report.summary.totalInsertions} / -${report.summary.totalDeletions}</div>
+      <div class="stat-label">Total Code Diff (LOC)</div>
     </div>
   </div>
 
-  <table>
+  <div class="controls">
+    <input type="text" id="searchInput" class="search-input" placeholder="Quick search tasks, commit sha, actor..." oninput="filterTable()" />
+    <button class="filter-btn active" onclick="setFilter('all', this)">All (${report.items.length})</button>
+    <button class="filter-btn" onclick="setFilter('verified', this)">Verified (${report.summary.verifiedCompleted + report.summary.humanApproved})</button>
+    <button class="filter-btn" onclick="setFilter('review', this)">Needs Review (${report.summary.needsHumanReview})</button>
+    <button class="filter-btn" onclick="setFilter('failed', this)">Failed/Blocked (${report.summary.testsFailed + report.summary.blocked})</button>
+  </div>
+
+  <table id="itemsTable">
     <thead>
       <tr>
         <th style="width: 100px;">Task ID</th>
@@ -325,6 +373,39 @@ export function renderHtmlReport(report: AuditReport): string {
   <div class="footer">
     DevPilot — Factual Work Ledger &amp; Audit Trail. No fictitious percentages. Fully reproducible locally.
   </div>
+
+  <script>
+    let activeFilter = 'all';
+
+    function setFilter(filter, btn) {
+      activeFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filterTable();
+    }
+
+    function filterTable() {
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      const rows = document.querySelectorAll('.item-row');
+
+      rows.forEach(row => {
+        const searchData = row.getAttribute('data-search') || '';
+        const status = row.getAttribute('data-status') || '';
+        const matchesQuery = !q || searchData.includes(q);
+
+        let matchesFilter = true;
+        if (activeFilter === 'verified') {
+          matchesFilter = status === 'VERIFIED_COMPLETED' || status === 'HUMAN_APPROVED';
+        } else if (activeFilter === 'review') {
+          matchesFilter = status === 'NEEDS_HUMAN_REVIEW';
+        } else if (activeFilter === 'failed') {
+          matchesFilter = status === 'TESTS_FAILED' || status === 'BLOCKED';
+        }
+
+        row.style.display = (matchesQuery && matchesFilter) ? '' : 'none';
+      });
+    }
+  </script>
 </body>
 </html>
   `;

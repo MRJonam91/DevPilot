@@ -21,6 +21,7 @@ USAGE:
 
 COMMANDS:
   report, audit          Generate inspectable work ledger from Git, issues, and tests
+  status                 Print concise one-line or compact status digest
   init                   Initialize local .devpilot/ ledger store
   approve <itemId>       Record a verified human sign-off for a work item
   reject <itemId>        Record a human rejection/block for a work item
@@ -31,17 +32,21 @@ COMMANDS:
 OPTIONS:
   --repo <path>          Path to Git repository (default: current directory)
   --issues <path>        Path to exported issues (JSON or Markdown)
-  --tests <path>         Path to test suite report (JUnit XML or JSON)
+  --tests <path>         Path to test suite report (JUnit XML, TAP, or JSON)
   --format <fmt>         Output format: terminal | html | markdown | json (default: terminal)
   --output, -o <file>    Save report to specified file path
   --by <name>            Signer identity for approve/reject
   --note <message>       Human approval rationale or explanation
+  --strict               Fail with exit code 1 if unverified agent tasks or test failures exist
+  --since <date>         Filter git commits created after date (e.g. "2026-01-01" or "7 days ago")
+  --max <number>         Max commit history depth to inspect (default: 100)
   --no-sponsor           Suppress sponsor line
   --sponsor              Force display sponsor prompt
 
 EXAMPLES:
   devpilot report --issues issues.json --tests junit.xml
   devpilot report --format html --output devpilot-report.html
+  devpilot status --strict
   devpilot approve issue-42 --by "Alice" --note "Verified agent fix in sandbox"
   devpilot verify
 
@@ -66,6 +71,7 @@ export function parseArgs(args: string[]) {
     else if (arg === "--version" || arg === "-v") flags.version = true;
     else if (arg === "--sponsor") flags.sponsor = true;
     else if (arg === "--no-sponsor") flags.noSponsor = true;
+    else if (arg === "--strict") flags.strict = true;
     else if (arg.startsWith("--")) {
       const key = arg.slice(2);
       const next = args[i + 1];
@@ -142,8 +148,11 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
       return 0;
     }
 
-    if (command === "report" || command === "audit") {
-      const commits = readLocalGitCommits(repoDir);
+    if (command === "report" || command === "audit" || command === "status") {
+      const maxCount = flags.max ? Number.parseInt(String(flags.max), 10) : 100;
+      const since = flags.since ? String(flags.since) : undefined;
+
+      const commits = readLocalGitCommits(repoDir, { maxCount, since });
       const issues = flags.issues ? loadIssuesFromFile(resolve(String(flags.issues))) : [];
       const testResults = flags.tests ? loadTestResultsFromFile(resolve(String(flags.tests))) : {
         total: 0, passed: 0, failed: 0, skipped: 0, durationMs: 0, timestamp: new Date().toISOString(), tests: []
@@ -157,6 +166,32 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
         tests: testResults.tests,
         signOffs: ledger.signOffs,
       });
+
+      if (command === "status") {
+        const { summary } = report;
+        const statusLine = [
+          `DevPilot: ${summary.totalItems} items`,
+          `✔ ${summary.verifiedCompleted + summary.humanApproved} verified`,
+          `▶ ${summary.inProgress} in-progress`,
+          `⚠ ${summary.needsHumanReview} need review`,
+          `✖ ${summary.testsFailed + summary.blocked} failed/blocked`,
+          `(${summary.humanCommitsCount} human / ${summary.agentCommitsCount} agent commits, +${summary.totalInsertions}/-${summary.totalDeletions} LOC)`,
+        ].join(" | ");
+
+        if (summary.criticalPathWarnings > 0) {
+          console.log(`\x1b[31m${statusLine} [CRITICAL RISKS: ${summary.criticalPathWarnings}]\x1b[0m`);
+        } else if (summary.needsHumanReview > 0 || summary.testsFailed > 0) {
+          console.log(`\x1b[33m${statusLine}\x1b[0m`);
+        } else {
+          console.log(`\x1b[32m${statusLine}\x1b[0m`);
+        }
+
+        if (flags.strict && (summary.testsFailed > 0 || summary.blocked > 0 || summary.criticalPathWarnings > 0 || summary.needsHumanReview > 0)) {
+          console.error("Strict mode check failed: unverified agent tasks, test failures, or critical risks detected.");
+          return 1;
+        }
+        return 0;
+      }
 
       const format = String(flags.format || "terminal").toLowerCase();
       let outputText = "";
@@ -180,6 +215,15 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
       }
 
       maybeShowSponsor(Boolean(flags.sponsor), Boolean(flags.noSponsor));
+
+      if (flags.strict) {
+        const s = report.summary;
+        if (s.testsFailed > 0 || s.blocked > 0 || s.criticalPathWarnings > 0 || s.needsHumanReview > 0) {
+          console.error("\x1b[31m✖ Strict verification failed: unapproved agent code or failed tests present in ledger.\x1b[0m");
+          return 1;
+        }
+      }
+
       return 0;
     }
 

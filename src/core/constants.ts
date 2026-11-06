@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Manoj Rollo (MRJonam91)
 
-export const DEVPILOT_VERSION = "1.0.0";
+export const DEVPILOT_VERSION = "1.0.0-alpha.1";
 export const DEVPILOT_NAMESPACE = "dp.ledger.d4e1f8";
 export const DEVPILOT_GENESIS_NONCE = 9421;
 

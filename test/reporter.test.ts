@@ -26,6 +26,9 @@ test("renderers generate expected output strings", () => {
         filesTouched: ["src/core.ts"],
         issueRefs: [1],
         coAuthors: [],
+        insertions: 20,
+        deletions: 2,
+        isCriticalPath: false,
       },
     ],
     issues: [
