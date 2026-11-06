@@ -119,6 +119,7 @@ export interface AuditReport {
   version: string;
   repository: string;
   generatedAt: string;
+  integrityHash?: string;
   summary: AuditSummary;
   items: WorkLedgerItem[];
   orphanCommits: GitCommitRecord[];

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Manoj Rollo (MRJonam91)
 
+import { createHash } from "node:crypto";
 import { DEVPILOT_VERSION } from "./constants.ts";
 import type {
   ActorKind,
@@ -214,10 +215,16 @@ export function reconcileWorkLedger(options: ReconcileOptions): AuditReport {
     untestedAgentCodeCount,
   };
 
+  const integrityPayload = `${repoName}:${commits.map((c) => c.sha).join(",")}:${summary.totalItems}:${summary.humanApproved}`;
+  const integrityHash = commits.length > 0
+    ? createHash("sha256").update(integrityPayload).digest("hex")
+    : undefined;
+
   return {
     version: DEVPILOT_VERSION,
     repository: repoName,
     generatedAt: new Date().toISOString(),
+    integrityHash,
     summary,
     items,
     orphanCommits,

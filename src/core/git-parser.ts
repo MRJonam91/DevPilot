@@ -50,7 +50,7 @@ export function extractCoAuthors(body: string): string[] {
   const lines = body.split("\n");
   const authors: string[] = [];
   for (const line of lines) {
-    const match = line.match(/^Co-authored-by:\s*(.+)$/i);
+    const match = line.match(/^(?:Co-authored-by|Reviewed-by|Signed-off-by):\s*(.+)$/i);
     if (match?.[1]) {
       authors.push(match[1].trim());
     }

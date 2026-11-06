@@ -1,6 +1,6 @@
 {
   "name": "devpilot",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-beta.1",
   "description": "Inspectable work ledger & local audit trail for human and agent software projects: reconciles Git commits, exported issues, and test runs into verifiable evidence without fictitious completion percentages.",
   "type": "module",
   "license": "Apache-2.0",

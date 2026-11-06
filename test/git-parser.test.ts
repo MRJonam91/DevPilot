@@ -33,10 +33,14 @@ test("extractIssueRefs identifies issue identifiers from commit messages", () =>
   assert.deepEqual(refs, [9, 42, 108]);
 });
 
-test("extractCoAuthors extracts Co-authored-by trailers", () => {
-  const body = "Initial work\n\nCo-authored-by: Alice <alice@example.com>\nCo-authored-by: Bob <bob@example.com>";
-  const coAuthors = extractCoAuthors(body);
-  assert.deepEqual(coAuthors, ["Alice <alice@example.com>", "Bob <bob@example.com>"]);
+test("extractCoAuthors extracts Co-authored-by, Reviewed-by and Signed-off-by trailers", () => {
+  const body = "Initial work\n\nCo-authored-by: Alice <alice@example.com>\nReviewed-by: Lead Maintainer <lead@example.com>\nSigned-off-by: Bob <bob@example.com>";
+  const trailers = extractCoAuthors(body);
+  assert.deepEqual(trailers, [
+    "Alice <alice@example.com>",
+    "Lead Maintainer <lead@example.com>",
+    "Bob <bob@example.com>",
+  ]);
 });
 
 test("parseGitLogOutput parses git log entries with numstat insertions and deletions", () => {

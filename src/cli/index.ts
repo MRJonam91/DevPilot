@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Manoj Rollo (MRJonam91)
 
-import { writeFileSync } from "node:fs";
+import { writeFileSync, existsSync } from "node:fs";
 import { resolve, basename } from "node:path";
 import { DEVPILOT_VERSION, SPONSOR_PROMPT } from "../core/constants.ts";
 import { readLocalGitCommits } from "../core/git-parser.ts";
 import { loadIssuesFromFile } from "../core/issues-parser.ts";
 import { loadTestResultsFromFile } from "../core/tests-parser.ts";
 import { reconcileWorkLedger } from "../core/reconciler.ts";
-import { initLedger, loadLedger, recordSignOff } from "../core/ledger.ts";
+import { initLedger, loadLedger, recordSignOff, verifyLedgerIntegrity } from "../core/ledger.ts";
 import { renderHtmlReport, renderMarkdownReport, renderTerminalReport } from "../core/reporter.ts";
 
 function showHelp(): void {
@@ -22,10 +22,12 @@ USAGE:
 COMMANDS:
   report, audit          Generate inspectable work ledger from Git, issues, and tests
   status                 Print concise one-line or compact status digest
+  diff <itemId>          Inspect evidence trail, commits, and tests for a specific item
+  export                 Export full audit bundle (HTML, Markdown, and JSON) to disk
   init                   Initialize local .devpilot/ ledger store
   approve <itemId>       Record a verified human sign-off for a work item
   reject <itemId>        Record a human rejection/block for a work item
-  verify                 Verify evidence integrity of the ledger
+  verify                 Verify cryptographic evidence integrity of the ledger
   help, --help, -h       Display this help manual
   version, -v, --version Display current version
 
@@ -46,6 +48,8 @@ OPTIONS:
 EXAMPLES:
   devpilot report --issues issues.json --tests junit.xml
   devpilot report --format html --output devpilot-report.html
+  devpilot diff issue-1
+  devpilot export --output ./audit-dist/
   devpilot status --strict
   devpilot approve issue-42 --by "Alice" --note "Verified agent fix in sandbox"
   devpilot verify
@@ -119,6 +123,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
       const store = initLedger(repoDir);
       console.log(`✔ Initialized DevPilot ledger at ${resolve(repoDir, ".devpilot/ledger.json")}`);
       console.log(`  Genesis Nonce: ${store.genesisNonce} | Schema: v${store.version}`);
+      if (store.integrityHash) console.log(`  Integrity Fingerprint: ${store.integrityHash}`);
       return 0;
     }
 
@@ -140,59 +145,131 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
     }
 
     if (command === "verify") {
-      const store = loadLedger(repoDir);
-      const signOffCount = Object.keys(store.signOffs).length;
-      console.log(`✔ DevPilot Ledger Integrity Check: OK`);
-      console.log(`  Ledger Version: ${store.version}`);
-      console.log(`  Recorded Sign-offs: ${signOffCount}`);
+      const result = verifyLedgerIntegrity(repoDir);
+      if (!result.valid) {
+        console.error(`\x1b[31m✖ DevPilot Ledger Integrity Check FAILED\x1b[0m`);
+        console.error(`  Error: ${result.error || "Unknown verification error"}`);
+        return 1;
+      }
+      console.log(`\x1b[32m✔ DevPilot Ledger Integrity Check: OK (Tamper-evident verification passed)\x1b[0m`);
+      console.log(`  Recorded Sign-offs: ${result.signOffCount}`);
+      if (result.integrityHash) console.log(`  Fingerprint: ${result.integrityHash}`);
       return 0;
     }
 
-    if (command === "report" || command === "audit" || command === "status") {
-      const maxCount = flags.max ? Number.parseInt(String(flags.max), 10) : 100;
-      const since = flags.since ? String(flags.since) : undefined;
+    const maxCount = flags.max ? Number.parseInt(String(flags.max), 10) : 100;
+    const since = flags.since ? String(flags.since) : undefined;
+    const commits = readLocalGitCommits(repoDir, { maxCount, since });
+    const issues = flags.issues ? loadIssuesFromFile(resolve(String(flags.issues))) : [];
+    const testResults = flags.tests ? loadTestResultsFromFile(resolve(String(flags.tests))) : {
+      total: 0, passed: 0, failed: 0, skipped: 0, durationMs: 0, timestamp: new Date().toISOString(), tests: []
+    };
+    const ledger = loadLedger(repoDir);
 
-      const commits = readLocalGitCommits(repoDir, { maxCount, since });
-      const issues = flags.issues ? loadIssuesFromFile(resolve(String(flags.issues))) : [];
-      const testResults = flags.tests ? loadTestResultsFromFile(resolve(String(flags.tests))) : {
-        total: 0, passed: 0, failed: 0, skipped: 0, durationMs: 0, timestamp: new Date().toISOString(), tests: []
-      };
-      const ledger = loadLedger(repoDir);
+    const report = reconcileWorkLedger({
+      repositoryName: basename(repoDir),
+      commits,
+      issues,
+      tests: testResults.tests,
+      signOffs: ledger.signOffs,
+    });
 
-      const report = reconcileWorkLedger({
-        repositoryName: basename(repoDir),
-        commits,
-        issues,
-        tests: testResults.tests,
-        signOffs: ledger.signOffs,
-      });
-
-      if (command === "status") {
-        const { summary } = report;
-        const statusLine = [
-          `DevPilot: ${summary.totalItems} items`,
-          `✔ ${summary.verifiedCompleted + summary.humanApproved} verified`,
-          `▶ ${summary.inProgress} in-progress`,
-          `⚠ ${summary.needsHumanReview} need review`,
-          `✖ ${summary.testsFailed + summary.blocked} failed/blocked`,
-          `(${summary.humanCommitsCount} human / ${summary.agentCommitsCount} agent commits, +${summary.totalInsertions}/-${summary.totalDeletions} LOC)`,
-        ].join(" | ");
-
-        if (summary.criticalPathWarnings > 0) {
-          console.log(`\x1b[31m${statusLine} [CRITICAL RISKS: ${summary.criticalPathWarnings}]\x1b[0m`);
-        } else if (summary.needsHumanReview > 0 || summary.testsFailed > 0) {
-          console.log(`\x1b[33m${statusLine}\x1b[0m`);
-        } else {
-          console.log(`\x1b[32m${statusLine}\x1b[0m`);
-        }
-
-        if (flags.strict && (summary.testsFailed > 0 || summary.blocked > 0 || summary.criticalPathWarnings > 0 || summary.needsHumanReview > 0)) {
-          console.error("Strict mode check failed: unverified agent tasks, test failures, or critical risks detected.");
-          return 1;
-        }
-        return 0;
+    if (command === "diff") {
+      const itemId = positional[1];
+      if (!itemId) {
+        console.error("Error: Missing itemId. Usage: devpilot diff <itemId>");
+        return 1;
+      }
+      const item = report.items.find((i) => i.id.toLowerCase() === itemId.toLowerCase());
+      if (!item) {
+        console.error(`Error: Task item '${itemId}' not found in current ledger.`);
+        return 1;
       }
 
+      console.log(`\x1b[1m═══════════════════════════════════════════════════════════════\x1b[0m`);
+      console.log(`\x1b[1mTask Inspection: ${item.id} — ${item.title}\x1b[0m`);
+      console.log(`Status: ${item.status} | Category: ${item.category} | Actor: ${item.primaryActor}`);
+      if (item.isCriticalRisk) console.log(`\x1b[41m\x1b[37mCRITICAL RISK: sensitive path touched without human sign-off\x1b[0m`);
+      console.log(`\x1b[1m═══════════════════════════════════════════════════════════════\x1b[0m\n`);
+
+      console.log(`\x1b[1mAssociated Git Commits (${item.evidence.commits.length}):\x1b[0m`);
+      for (const c of item.evidence.commits) {
+        console.log(`  • [${c.shortSha}] ${c.subject}`);
+        console.log(`    Author: ${c.authorName} <${c.authorEmail}> (${c.actorKind}) | +${c.insertions}/-${c.deletions}`);
+        if (c.filesTouched.length > 0) {
+          console.log(`    Files: ${c.filesTouched.join(", ")}`);
+        }
+      }
+
+      console.log(`\n\x1b[1mAssociated Test Cases (${item.evidence.tests.length}):\x1b[0m`);
+      for (const t of item.evidence.tests) {
+        const icon = t.status === "passed" ? "\x1b[32m✔\x1b[0m" : (t.status === "failed" ? "\x1b[31m✖\x1b[0m" : "\x1b[33m?\x1b[0m");
+        console.log(`  ${icon} [${t.status.toUpperCase()}] ${t.suite} :: ${t.name} (${t.durationMs}ms)`);
+        if (t.failureMessage) console.log(`    \x1b[31m${t.failureMessage}\x1b[0m`);
+      }
+
+      if (item.evidence.signOff) {
+        console.log(`\n\x1b[1mHuman Sign-off:\x1b[0m`);
+        console.log(`  Reviewer: ${item.evidence.signOff.approvedBy} (${item.evidence.signOff.status})`);
+        console.log(`  Rationale: "${item.evidence.signOff.rationale}"`);
+        console.log(`  Timestamp: ${item.evidence.signOff.timestamp}`);
+      }
+
+      if (item.unsubstantiatedFlags.length > 0) {
+        console.log(`\n\x1b[33mEvidence Warnings:\x1b[0m`);
+        for (const f of item.unsubstantiatedFlags) {
+          console.log(`  ⚠ ${f}`);
+        }
+      }
+      return 0;
+    }
+
+    if (command === "export") {
+      const outDir = flags.output || flags.o || ".";
+      const resolvedOutDir = resolve(String(outDir));
+      const html = renderHtmlReport(report);
+      const md = renderMarkdownReport(report);
+      const json = JSON.stringify(report, null, 2);
+
+      writeFileSync(resolve(resolvedOutDir, "devpilot-report.html"), html, "utf8");
+      writeFileSync(resolve(resolvedOutDir, "devpilot-report.md"), md, "utf8");
+      writeFileSync(resolve(resolvedOutDir, "devpilot-report.json"), json, "utf8");
+
+      console.log(`✔ DevPilot audit bundle exported to ${resolvedOutDir}:`);
+      console.log(`  • devpilot-report.html`);
+      console.log(`  • devpilot-report.md`);
+      console.log(`  • devpilot-report.json`);
+      if (report.integrityHash) console.log(`  Fingerprint: ${report.integrityHash}`);
+      return 0;
+    }
+
+    if (command === "status") {
+      const { summary } = report;
+      const statusLine = [
+        `DevPilot: ${summary.totalItems} items`,
+        `✔ ${summary.verifiedCompleted + summary.humanApproved} verified`,
+        `▶ ${summary.inProgress} in-progress`,
+        `⚠ ${summary.needsHumanReview} need review`,
+        `✖ ${summary.testsFailed + summary.blocked} failed/blocked`,
+        `(${summary.humanCommitsCount} human / ${summary.agentCommitsCount} agent commits, +${summary.totalInsertions}/-${summary.totalDeletions} LOC)`,
+      ].join(" | ");
+
+      if (summary.criticalPathWarnings > 0) {
+        console.log(`\x1b[31m${statusLine} [CRITICAL RISKS: ${summary.criticalPathWarnings}]\x1b[0m`);
+      } else if (summary.needsHumanReview > 0 || summary.testsFailed > 0) {
+        console.log(`\x1b[33m${statusLine}\x1b[0m`);
+      } else {
+        console.log(`\x1b[32m${statusLine}\x1b[0m`);
+      }
+
+      if (flags.strict && (summary.testsFailed > 0 || summary.blocked > 0 || summary.criticalPathWarnings > 0 || summary.needsHumanReview > 0)) {
+        console.error("Strict mode check failed: unverified agent tasks, test failures, or critical risks detected.");
+        return 1;
+      }
+      return 0;
+    }
+
+    if (command === "report" || command === "audit") {
       const format = String(flags.format || "terminal").toLowerCase();
       let outputText = "";
 

@@ -83,13 +83,22 @@ devpilot init
 # Inspect repository and print terminal report
 devpilot report
 
+# Quick status digest for CI and terminal prompts
+devpilot status --strict
+
+# Inspect evidence trail and commits for a specific task
+devpilot diff issue-1
+
+# Export full audit bundle (HTML, Markdown, and JSON) to disk
+devpilot export --output ./audit-dist/
+
 # Approve agent-authored work with audit rationale
 devpilot approve task-1 --by "Alice" --note "Verified test suite passes in isolated sandbox"
 
 # Reject or block an unverified claim
 devpilot reject issue-42 --by "Bob" --note "Memory regression detected during benchmark"
 
-# Verify local ledger integrity
+# Verify local ledger integrity with cryptographic tamper-evidence
 devpilot verify
 ```
 

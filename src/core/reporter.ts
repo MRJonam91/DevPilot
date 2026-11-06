@@ -43,6 +43,9 @@ export function renderTerminalReport(report: AuditReport): string {
   out.push(`\x1b[1m  DevPilot Work Ledger & Audit Report — ${report.repository}\x1b[0m`);
   out.push(`  \x1b[90mGenerated: ${report.generatedAt} | v${report.version}\x1b[0m`);
   out.push("\x1b[1m═══════════════════════════════════════════════════════════════════════════════\x1b[0m");
+  if (report.integrityHash) {
+    out.push(`  \x1b[90mIntegrity Fingerprint: ${report.integrityHash}\x1b[0m`);
+  }
   out.push("");
   out.push("\x1b[1m📊 Verified Metrics (Zero Fictitious Percentages):\x1b[0m");
   out.push(`  • Total Tracked Items:    \x1b[1m${summary.totalItems}\x1b[0m`);
@@ -316,7 +319,15 @@ export function renderHtmlReport(report: AuditReport): string {
     .test-passed { color: var(--green); }
     .signoff-box { background: rgba(63, 185, 80, 0.1); border-left: 3px solid var(--green); padding: 6px 8px; margin-top: 6px; font-size: 12px; border-radius: 2px; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; background: rgba(110,118,129,0.2); padding: 2px 4px; border-radius: 4px; }
-    .footer { margin-top: 32px; font-size: 12px; color: var(--text-muted); text-align: center; }
+    @media print {
+      body { background: #fff; color: #000; padding: 0; }
+      .controls, .footer, summary { display: none !important; }
+      table, .stat-card { border-color: #ccc; background: #fff; color: #000; }
+      th { background: #f0f0f0; color: #000; }
+      .badge, .status-pill { border: 1px solid #999; color: #000; }
+      details { display: block; }
+      details[open] summary { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -372,6 +383,7 @@ export function renderHtmlReport(report: AuditReport): string {
 
   <div class="footer">
     DevPilot — Factual Work Ledger &amp; Audit Trail. No fictitious percentages. Fully reproducible locally.
+    ${report.integrityHash ? `<br><small style="color:var(--text-muted)">Fingerprint: <code>${escapeHtml(report.integrityHash)}</code></small>` : ""}
   </div>
 
   <script>

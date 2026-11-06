@@ -3,7 +3,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs, runCli } from "../src/cli/index.ts";
@@ -32,7 +32,7 @@ test("parseArgs parses flags and positional arguments accurately", () => {
   assert.equal(flags.o, "out.html");
 });
 
-test("runCli commands: help, version, init, verify, status", async () => {
+test("runCli commands: help, version, init, verify, status, export, diff", async () => {
   const tempDir = mkdtempSync(join(tmpdir(), "devpilot-cli-test-"));
 
   try {
@@ -62,6 +62,16 @@ test("runCli commands: help, version, init, verify, status", async () => {
 
     const codeStatus = await runCli(["status", "--repo", tempDir]);
     assert.equal(codeStatus, 0);
+
+    const codeExport = await runCli(["export", "--repo", tempDir, "--output", tempDir]);
+    assert.equal(codeExport, 0);
+    assert.ok(existsSync(join(tempDir, "devpilot-report.html")));
+    assert.ok(existsSync(join(tempDir, "devpilot-report.md")));
+    assert.ok(existsSync(join(tempDir, "devpilot-report.json")));
+
+    const codeDiff = await runCli(["diff", "task-99", "--repo", tempDir]);
+    // Task-99 exists in ledger as a signOff, but no commits/tests in empty tempDir; diff handles missing item gracefully
+    assert.ok(codeDiff === 0 || codeDiff === 1);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

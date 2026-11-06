@@ -83,13 +83,22 @@ devpilot init
 # Ispeziona il repository e genera il report a terminale
 devpilot report
 
+# Sintesi compatta dello stato con strict check per la CI
+devpilot status --strict
+
+# Ispeziona nel dettaglio i commit, le modifiche e i test per un task specifico
+devpilot diff issue-1
+
+# Esporta il pacchetto di audit completo (HTML, Markdown e JSON) su disco
+devpilot export --output ./audit-dist/
+
 # Approva il lavoro svolto da un agente indicando la motivazione
 devpilot approve task-1 --by "Manoj" --note "Verificato passaggio della suite in sandbox isolata"
 
 # Rifiuta o blocca un'attività non verificata
 devpilot reject issue-42 --by "Alice" --note "Rilevata regressione di memoria nel benchmark"
 
-# Verifica l'integrità del registro locale
+# Verifica l'integrità del registro locale con controllo anti-manomissione (SHA-256)
 devpilot verify
 ```
 

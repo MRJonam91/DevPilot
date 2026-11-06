@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-beta.1] - 2026-11-06
+
+### Added
+- **Cryptographic Tamper-Evidence**:
+  - Deterministic SHA-256 fingerprinting across ledger stores and audit reports.
+  - Automatic tamper detection in `devpilot verify`: rejects manually edited or corrupt ledger entries.
+- **New CLI Inspection & Export Tooling**:
+  - `devpilot diff <itemId>`: detailed inspection of associated commits, author breakdowns, touched files, insertions/deletions, and test assertions.
+  - `devpilot export`: generates a complete audit release bundle (`devpilot-report.html`, `devpilot-report.md`, `devpilot-report.json`) with cryptographic fingerprints.
+- **Git Trailer Metadata Support**:
+  - Ingestion of `Reviewed-by:` and `Signed-off-by:` commit trailers alongside `Co-authored-by:` for auditable multi-stakeholder governance.
+- **Print & PDF Layout**:
+  - Dedicated `@media print` stylesheets for clean PDF exports and regulatory audit documentation.
+
 ## [1.0.0-alpha.1] - 2026-11-06
 
 ### Added
