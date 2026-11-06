@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 440" width="100%" height="100%">
+  <metadata>
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <rdf:Description>
+        <dc:identifier>dp.ledger.d4e1f8</dc:identifier>
+        <dc:creator>Manoj Rollo (MRJonam91)</dc:creator>
+        <dc:title>DevPilot Terminal Audit Overview</dc:title>
+      </rdf:Description>
+    </rdf:RDF>
+  </metadata>
+  <rect width="880" height="440" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="2"/>
+  <circle cx="28" cy="24" r="6" fill="#f85149" />
+  <circle cx="48" cy="24" r="6" fill="#d29922" />
+  <circle cx="68" cy="24" r="6" fill="#3fb950" />
+  <text x="100" y="28" font-family="ui-monospace, monospace" font-size="13" fill="#8b949e">devpilot audit --repo . --issues issues.json --tests junit.xml</text>
+
+  <!-- Content Box -->
+  <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="13" fill="#c9d1d9">
+    <text x="32" y="70" fill="#58a6ff" font-weight="bold">═══════════════════════════════════════════════════════════════════════════</text>
+    <text x="32" y="92" fill="#ffffff" font-weight="bold">  DevPilot Work Ledger &amp; Audit Report — core-repo</text>
+    <text x="32" y="112" fill="#8b949e">  Generated: 2026-11-06T15:00:00Z | v1.0.0 | Zero Fictitious Percentages</text>
+    <text x="32" y="132" fill="#58a6ff" font-weight="bold">═══════════════════════════════════════════════════════════════════════════</text>
+
+    <text x="32" y="170" fill="#ffffff" font-weight="bold">📊 Verified Evidence Metrics:</text>
+    <text x="48" y="195">• Tracked Items: <tspan fill="#ffffff" font-weight="bold">8</tspan> | Human Approved: <tspan fill="#3fb950" font-weight="bold">3</tspan> | Verified Completed: <tspan fill="#3fb950" font-weight="bold">4</tspan></text>
+    <text x="48" y="218">• Needs Human Review: <tspan fill="#d29922" font-weight="bold">1</tspan> | Tests Failed: <tspan fill="#f85149" font-weight="bold">0</tspan> | Unverified: <tspan fill="#8b949e">0</tspan></text>
+    <text x="48" y="241">• Actor Ratio: Human Commits <tspan fill="#58a6ff" font-weight="bold">14</tspan> · Agent Commits <tspan fill="#bc8cff" font-weight="bold">6</tspan></text>
+
+    <text x="32" y="280" fill="#ffffff" font-weight="bold">📋 Work Items &amp; Inspectable Proofs:</text>
+    <text x="48" y="305"><tspan fill="#3fb950">[Fact]</tspan> <tspan fill="#ffffff" font-weight="bold">issue-1</tspan>: Reconcile Git history &amp; JUnit XML <tspan fill="#3fb950">✔ VERIFIED COMPLETED</tspan></text>
+    <text x="64" y="325" fill="#8b949e">Proof: 2 passing tests · commit [c0ffee1] (human)</text>
+
+    <text x="48" y="355"><tspan fill="#bc8cff">[Fact]</tspan> <tspan fill="#ffffff" font-weight="bold">issue-2</tspan>: Autonomous agent refactor <tspan fill="#d29922">⚠ NEEDS HUMAN REVIEW</tspan></text>
+    <text x="64" y="375" fill="#8b949e">Proof: commit [deadbee] (agent) · Missing human sign-off</text>
+
+    <text x="48" y="405"><tspan fill="#3fb950">[Sign-Off]</tspan> <tspan fill="#ffffff" font-weight="bold">task-3</tspan>: Cryptographic Nonce Ledger <tspan fill="#3fb950">✔ HUMAN APPROVED</tspan></text>
+    <text x="64" y="423" fill="#8b949e">Signed by Lead Maintainer · Rationale: "Verified in local sandbox"</text>
+  </g>
+</svg>

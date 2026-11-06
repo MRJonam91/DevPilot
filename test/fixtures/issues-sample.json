@@ -1,0 +1,18 @@
+[
+  {
+    "number": 1,
+    "title": "Implement work ledger reconciliation core",
+    "state": "closed",
+    "assignees": ["MRJonam91"],
+    "labels": ["enhancement", "core"],
+    "closedAt": "2026-11-06T15:00:00Z"
+  },
+  {
+    "number": 2,
+    "title": "Add JUnit XML test report parser",
+    "state": "open",
+    "assignees": ["agent-coder"],
+    "labels": ["agent-task"],
+    "url": "https://github.com/MRJonam91/DevPilot/issues/2"
+  }
+]

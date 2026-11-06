@@ -1,0 +1,83 @@
+{
+  "name": "devpilot",
+  "version": "1.0.0",
+  "description": "Inspectable work ledger & local audit trail for human and agent software projects: reconciles Git commits, exported issues, and test runs into verifiable evidence without fictitious completion percentages.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": "Manoj Rollo <fbxmano@gmail.com> (https://github.com/MRJonam91)",
+  "homepage": "https://github.com/MRJonam91/DevPilot#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MRJonam91/DevPilot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MRJonam91/DevPilot/issues"
+  },
+  "keywords": [
+    "devpilot",
+    "work-ledger",
+    "audit-trail",
+    "git",
+    "agent-governance",
+    "ai-agents",
+    "inspectable-evidence",
+    "code-audit",
+    "test-results",
+    "issue-tracker",
+    "single-source-of-truth",
+    "software-governance",
+    "provenance",
+    "cli",
+    "typescript"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "bin": {
+    "devpilot": "dist/cli/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "README.it.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "start": "node --experimental-strip-types src/cli/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test \"test/**/*.test.ts\"",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "funding": [
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/MRJonam91"
+    },
+    {
+      "type": "ko-fi",
+      "url": "https://ko-fi.com/mrjonam"
+    },
+    {
+      "type": "buymeacoffee",
+      "url": "https://buymeacoffee.com/mrjonam"
+    },
+    {
+      "type": "paypal",
+      "url": "https://paypal.me/manorollo"
+    }
+  ],
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "typescript": "^5.7.3"
+  }
+}

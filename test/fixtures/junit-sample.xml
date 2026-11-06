@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="DevPilotCore" tests="3" failures="1" skipped="1" time="1.42">
+    <testcase classname="DevPilotCore" name="should reconcile commits and issues" time="0.12" />
+    <testcase classname="DevPilotCore" name="should fail on unverified agent code" time="0.08">
+      <failure message="Agent commit detected without human review approval">AssertionError: expected signOff</failure>
+    </testcase>
+    <testcase classname="DevPilotCore" name="should handle skipped tests gracefully" time="0.0">
+      <skipped />
+    </testcase>
+  </testsuite>
+</testsuites>
